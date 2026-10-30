@@ -1,0 +1,14 @@
+# 养基宝 广告域名拦截（filter_remote 专用）
+# 用法：QX → 设置 → 引用 → 添加「分流」→ 粘贴本文件 raw 链接
+# reject 为连接层阻断，不需要 MITM 证书
+
+host, sigmob.cn, reject
+host, shenshiads.com, reject
+host, adn-plus.com.cn, reject
+host, ad-scope.com.cn, reject
+host, pglstatp-toutiao.com, reject
+host, lf-cdn-tos.bytescm.com, reject
+host, ctobsnssdk.com, reject
+host, ad.toutiao.com, reject
+host, tnc3-alisc1.zijieapi.com, reject
+host, guanggao-prod.cn-shanghai.log.aliyuncs.com, reject
