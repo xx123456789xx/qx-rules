@@ -1,0 +1,61 @@
+#!name=养基宝 去广告
+#!desc=关开屏 / 去通知条横幅 / 断广告 SDK（基于 HAR 实测抓包还原）
+#!author=xx123456789xx
+#!homepage=https://github.com/xx123456789xx/x-x-1234-x-x
+#
+# 安装：Quantumult X → 设置 → 引用(Reference) → 添加 Snippet → 粘贴本文件 raw 链接
+# 依赖：需开启 MITM 并信任证书（本片段已声明 hostname，添加后自动合并）
+# 影响：App 核心接口 app-api.yangjibao.com 不拦截，仅改写广告配置响应
+
+[rewrite_local]
+
+# ① 开屏广告总开关 → false
+^https:\/\/app-api\.yangjibao\.com\/content\/v1\/ad\/config url response-body "switch"\s*:\s*true response-body "switch":false
+
+# ② 开屏每日展示上限 → 0
+^https:\/\/app-api\.yangjibao\.com\/content\/v1\/ad\/config url response-body "daily_show_limit"\s*:\s*\d+ response-body "daily_show_limit":0
+
+# ③ 开屏广告位 ID 清空
+^https:\/\/app-api\.yangjibao\.com\/content\/v1\/ad\/config url response-body "ad_id"\s*:\s*"[^"]*" response-body "ad_id":""
+
+# ④ 信息流广告插入位置 → 0
+^https:\/\/app-api\.yangjibao\.com\/content\/v1\/ad\/config url response-body "position_end"\s*:\s*\d+ response-body "position_end":0
+
+# ⑤ 顶部通知条 notice → null
+^https:\/\/app-api\.yangjibao\.com\/unify_ad url response-body "notice":\{[^}]*\} response-body "notice":null
+
+# ⑥ 横向横幅 bar → null
+^https:\/\/app-api\.yangjibao\.com\/unify_ad url response-body "bar":\{[^}]*\} response-body "bar":null
+
+# ⑦ 气泡通知 → null（防御性）
+^https:\/\/app-api\.yangjibao\.com\/unify_ad url response-body "bubble_notice":\{[^}]*\} response-body "bubble_notice":null
+
+
+[filter_local]
+
+# —— Sigmob（主力广告 SDK）——
+host, sigmob.cn, reject
+
+# —— 神奇广告 ShenshiAds ——
+host, shenshiads.com, reject
+
+# —— AdnPlus ——
+host, adn-plus.com.cn, reject
+
+# —— 广告素材 CDN（单张素材 1.4MB）——
+host, ad-scope.com.cn, reject
+
+# —— 穿山甲 / 字节广告 SDK ——
+host, pglstatp-toutiao.com, reject
+host, lf-cdn-tos.bytescm.com, reject
+host, ctobsnssdk.com, reject
+host, ad.toutiao.com, reject
+host, tnc3-alisc1.zijieapi.com, reject
+
+# —— 广告曝光埋点（阿里云 SLS）——
+host, guanggao-prod.cn-shanghai.log.aliyuncs.com, reject
+
+
+[mitm]
+
+hostname = app-api.yangjibao.com
