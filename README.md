@@ -39,7 +39,7 @@
 |---|---|---|---|
 | 开屏 | `app-api.yangjibao.com/content/v1/ad/config` | `switch=true`、`ad_id=5812156396367453`、`daily_show_limit=20` | 改写 JSON：开关 false、次数 0、ad_id 清空 |
 | 通知条 / 横幅 | `app-api.yangjibao.com/unify_ad` | `notice{type:"ad"}`、`bar{type:"ad"}` | 置 `null` |
-| 第三方 SDK | `sigmob.cn`、`shenshiads.com`、`adn-plus.com.cn`、穿山甲 | 加密二进制，无法改 body | `reject` |
+| 第三方 SDK | `sigmob.cn`、`shenshiads.com`、`adn-plus.com.cn`、穿山甲 | 加密二进制，无法改 body | `reject-200` |
 
 ### 说明
 
