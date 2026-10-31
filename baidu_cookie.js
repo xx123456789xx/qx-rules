@@ -1,12 +1,10 @@
 // Quantumult X - 百度网盘 Cookie 抓取
-// 仅在你自己的设备和账号上使用；Cookie 等同于登录凭证，请勿分享。
+// 仅保存到本机 QX 持久化存储；不要分享 Cookie。
 
 const headers = ($request && $request.headers) || {};
 const cookie = headers.Cookie || headers.cookie || "";
 
 if (cookie) {
-  // 保存完整 Cookie，避免遗漏百度网盘新增或变化的字段。
-  // Cookie 只写入本机 Quantumult X 持久化存储，不发送到 GitHub。
   $prefs.setValueForKey(cookie, "BaiduPan_Cookie");
 
   const names = cookie.split(";")
@@ -16,8 +14,19 @@ if (cookie) {
   $notify(
     "百度网盘 Cookie",
     "捕获成功",
-    "已保存请求 Cookie（字段：" + names.join(", ") + "）"
+    "已保存到本机。字段：" + names.join(", ")
   );
+} else {
+  // 仅提示一次，确认规则已命中但该请求没有 Cookie。
+  const warned = $prefs.valueForKey("BaiduPan_NoCookieWarned");
+  if (!warned) {
+    $prefs.setValueForKey("1", "BaiduPan_NoCookieWarned");
+    $notify(
+      "百度网盘 Cookie",
+      "规则已触发，但请求头没有 Cookie",
+      "请登录后访问网盘文件列表；若仍无 Cookie，可能该请求不携带 Cookie。"
+    );
+  }
 }
 
 $done({});
