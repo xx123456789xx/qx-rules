@@ -1,65 +1,24 @@
-# Quantumult X 规则集
+# 百度网盘 Cookie 抓取 - Quantumult X
 
-自用 Quantumult X 规则，按 App 维度维护。所有规则均基于真实 HAR 抓包还原，不做「整域名瞎拦」。
+## 文件
+- `baidu-pan.conf`：Quantumult X 重写订阅配置
+- `baidu_cookie.js`：请求头脚本
 
-## 养基宝 去广告
+## GitHub 部署
+1. 在 GitHub 新建一个仓库，例如 `qx-scripts`。
+2. 将 `baidu-pan.conf` 和 `baidu_cookie.js` 上传到仓库根目录。
+3. 打开 `baidu-pan.conf`，将 `YOUR_GITHUB_USERNAME/YOUR_REPO/main` 替换为你的 GitHub 用户名/仓库名/分支名。
+4. 保存后，在 Quantumult X 中通过远程配置/重写资源方式添加：
+   `https://raw.githubusercontent.com/你的用户名/你的仓库/main/baidu-pan.conf`
 
-### 订阅地址
+## 使用
+1. 在 Quantumult X 中启用对应重写规则和 MitM。
+2. 安装并信任 Quantumult X 的 MitM 证书。
+3. 打开百度网盘网页并登录，确保请求经过 Quantumult X。
+4. 脚本捕获到请求 Cookie 后，会写入本机持久化键 `BaiduPan_Cookie`，并发送不含 Cookie 值的成功通知。
 
-| 类型 | 用途 | 地址 |
-|---|---|---|
-| **Snippet（推荐）** | 一条链接含 rewrite + filter + mitm | `https://raw.githubusercontent.com/xx123456789xx/x-x-1234-x-x/main/quantumult-x/yangjibao.snippet` |
-| Rewrite | 只要重写，自行管 MITM | `https://raw.githubusercontent.com/xx123456789xx/x-x-1234-x-x/main/quantumult-x/yangjibao.rewrite.conf` |
-| Filter | 只要广告域名拦截 | `https://raw.githubusercontent.com/xx123456789xx/x-x-1234-x-x/main/quantumult-x/yangjibao.filter.list` |
-
-国内 raw 访问不稳时，把 `https://raw.githubusercontent.com/xx123456789xx/x-x-1234-x-x/main/` 换成
-`https://cdn.jsdelivr.net/gh/xx123456789xx/x-x-1234-x-x@main/` 即可（文件路径不变）。
-
-### 安装
-
-**方式一：Snippet（最省事）**
-
-1. QX → 设置 → 引用（Reference）→ 右上角 `+` → 类型选 **Snippet**
-2. 粘贴上表第一行的地址，保存
-3. 打开 MITM 开关，确认证书已安装并在系统里信任
-4. 重新加载配置，冷启动 App
-
-**方式二：分开引用**
-
-1. 设置 → 引用 → `+` → 类型选 **重写**，粘贴 rewrite 地址
-2. 再 `+` 一次 → 类型选 **分流**，粘贴 filter 地址
-3. 手动在 `[mitm]` 的 hostname 里追加 `app-api.yangjibao.com`（**追加，别覆盖**）
-4. 重新加载配置
-
-### 去掉了什么
-
-抓包实测（107 条请求）只有 3 条广告链路：
-
-| 广告位 | 接口 | 原始值 | 处理 |
-|---|---|---|---|
-| 开屏 | `app-api.yangjibao.com/content/v1/ad/config` | `switch=true`、`ad_id=5812156396367453`、`daily_show_limit=20` | 改写 JSON：开关 false、次数 0、ad_id 清空 |
-| 通知条 / 横幅 | `app-api.yangjibao.com/unify_ad` | `notice{type:"ad"}`、`bar{type:"ad"}` | 置 `null` |
-| 第三方 SDK | `sigmob.cn`、`shenshiads.com`、`adn-plus.com.cn`、穿山甲 | 加密二进制，无法改 body | `reject-200` |
-
-### 说明
-
-- 只拦广告，**不动** `app-api.yangjibao.com` 的业务接口
-- 信息流广告服务端本来就是关闭状态，规则里只做防御
-- 友盟统计域名（`utoken.umeng.com`、`cnlogs.umeng.com`）默认**不拦**，避免影响崩溃上报
-- 若 App 后续上线「看广告领权益」，屏蔽后该类功能点击无响应属预期
-
-### 更新
-
-QX 引用列表下拉即可刷新；或在「引用」里点该条目 → 更新。
-
-## 目录
-
-```
-quantumult-x/
-  yangjibao.snippet        # 完整片段（推荐）
-  yangjibao.rewrite.conf   # 仅重写
-  yangjibao.filter.list    # 仅域名拦截
-scripts/
-  yjb_ad_config.js         # 开屏/信息流改写（脚本版，需托管）
-  yjb_unify_ad.js          # 通知条/横幅改写（脚本版）
-```
+## 重要说明
+- 这是配置订阅文件，不是免证书或自动登录工具。
+- 本脚本只匹配 `pan.baidu.com` 请求；如果百度网盘 App 使用其他域名或请求没有经过 Quantumult X，可能无法捕获。
+- Cookie 是账号登录凭证。不要把 Cookie 值贴到 GitHub、聊天或公开场所。
+- GitHub 仓库中只放配置和脚本，不要上传抓取到的 Cookie。
