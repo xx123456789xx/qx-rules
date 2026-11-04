@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="订阅拼接">
+<title>订阅链接拼接器</title>
+<style>
+  :root { color-scheme: light dark; --accent:#0a84ff; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+         margin: 0; padding: 20px 16px 40px; line-height: 1.55; }
+  main { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 4px 0 4px; }
+  p.sub { opacity: .65; font-size: 13px; margin: 0 0 18px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 18px 0 6px; }
+  input[type="text"], input[type="password"], textarea {
+    width: 100%; padding: 11px 12px; font-size: 15px; border-radius: 10px;
+    border: 1px solid rgba(127,127,127,.4); background: transparent; color: inherit;
+    font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
+  textarea { min-height: 74px; resize: vertical; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  button { appearance: none; border: 0; border-radius: 10px; padding: 11px 16px;
+           font-size: 15px; font-weight: 600; background: var(--accent); color: #fff; }
+  button.secondary { background: rgba(127,127,127,.18); color: inherit; }
+  button.danger { background: rgba(255,69,58,.15); color: #ff453a; }
+  .status { font-size: 13px; margin-top: 8px; min-height: 18px; }
+  .ok { color: #30d158; } .warn { color: #ff9f0a; }
+  .out { background: rgba(127,127,127,.10); border-radius: 10px; padding: 12px;
+         font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px;
+         word-break: break-all; white-space: pre-wrap; min-height: 44px; }
+  .note { font-size: 12.5px; opacity: .65; margin-top: 22px; }
+  .note b { opacity: 1; }
+  select { font-size: 15px; padding: 8px; border-radius: 8px; max-width: 100%; }
+</style>
+</head>
+<body>
+<main>
+  <h1>订阅链接拼接器</h1>
+  <p class="sub">token 只存在这台设备的浏览器里，本页不联网、不上传任何内容。</p>
+
+  <label for="token">1. GitHub token（粘贴一次，保存在本机）</label>
+  <input id="token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_...">
+  <div class="row">
+    <button id="saveBtn" type="button">保存到本机</button>
+    <button id="toggleBtn" type="button" class="secondary">显示/隐藏</button>
+    <button id="clearBtn" type="button" class="danger">清除已存 token</button>
+  </div>
+  <div id="tokenStatus" class="status"></div>
+
+  <label for="base">2. 基础链接（Muse 给你的 raw 链接，或 owner/repo/分支/文件）</label>
+  <textarea id="base" autocapitalize="off" spellcheck="false" placeholder="把 Muse 给的 raw 链接粘贴到这里"></textarea>
+
+  <label for="style">3. 拼接方式</label>
+  <select id="style">
+    <option value="userpass" selected>x-access-token:token@（你现在用的这种）</option>
+    <option value="tokenonly">token@（备用形式）</option>
+  </select>
+
+  <label>4. 完整链接</label>
+  <div id="out" class="out"></div>
+  <div class="row">
+    <button id="copyBtn" type="button">复制完整链接</button>
+    <button id="openBtn" type="button" class="secondary">打开验证</button>
+  </div>
+  <div id="copyStatus" class="status"></div>
+
+  <p class="note">
+    <b>怎么放到桌面：</b>用 Safari 打开本页 → 分享 →「添加到主屏幕」。之后从桌面图标打开，第一次在图标打开的页面里再粘一次 token 保存（主屏幕应用和 Safari 的存储是分开的）。<br>
+    <b>注意：</b>换浏览器、清浏览器数据、长期不用被系统清缓存，都会让已存 token 消失，重新从密码管理器粘一次即可。不要在别人的设备上保存你的 token。
+  </p>
+</main>
+
+<script>
+"use strict";
+var LS_KEY = "clash_token_builder_v1";
+
+function normalizeBase(input) {
+  input = (input || "").trim();
+  if (!input) return "";
+  if (/^https?:\/\//i.test(input)) return input;
+  return "https://raw.githubusercontent.com/" + input.replace(/^\/+/, "");
+}
+function stripExistingAuth(url) {
+  try { var u = new URL(url); u.username = ""; u.password = ""; return u.toString(); }
+  catch (e) { return url; }
+}
+function buildFullUrl(base, token, style) {
+  var clean = stripExistingAuth(normalizeBase(base));
+  token = (token || "").trim();
+  if (!clean || !token) return clean;
+  var u = new URL(clean);
+  if (style === "tokenonly") { u.username = token; u.password = ""; }
+  else { u.username = "x-access-token"; u.password = token; }
+  return u.toString();
+}
+
+var tokenEl = document.getElementById("token");
+var baseEl = document.getElementById("base");
+var styleEl = document.getElementById("style");
+var outEl = document.getElementById("out");
+var tokenStatus = document.getElementById("tokenStatus");
+var copyStatus = document.getElementById("copyStatus");
+
+function currentToken() {
+  var v = tokenEl.value.trim();
+  if (v) return v;
+  try { return localStorage.getItem(LS_KEY) || ""; } catch (e) { return ""; }
+}
+function render() {
+  var t = currentToken();
+  outEl.textContent = buildFullUrl(baseEl.value, t, styleEl.value) || "（先填基础链接和 token）";
+  if (t) {
+    tokenStatus.innerHTML = '<span class="ok">已载入 token（尾号 …' + t.slice(-4) + "）</span>";
+  } else {
+    tokenStatus.innerHTML = '<span class="warn">还没有 token：粘贴后点「保存到本机」</span>';
+  }
+}
+document.getElementById("saveBtn").addEventListener("click", function () {
+  var v = tokenEl.value.trim();
+  if (!v) { tokenStatus.innerHTML = '<span class="warn">输入框是空的，没东西可存</span>'; return; }
+  try {
+    localStorage.setItem(LS_KEY, v);
+    tokenStatus.innerHTML = '<span class="ok">已存到本机浏览器（尾号 …' + v.slice(-4) + "）</span>";
+  } catch (e) {
+    tokenStatus.innerHTML = '<span class="warn">这个打开方式存不住（可能是预览模式），请用 Safari 打开并添加到主屏幕后再存</span>';
+  }
+  render();
+});
+document.getElementById("clearBtn").addEventListener("click", function () {
+  try { localStorage.removeItem(LS_KEY); } catch (e) {}
+  tokenEl.value = "";
+  render();
+});
+document.getElementById("toggleBtn").addEventListener("click", function () {
+  tokenEl.type = tokenEl.type === "password" ? "text" : "password";
+});
+document.getElementById("copyBtn").addEventListener("click", function () {
+  var text = outEl.textContent;
+  function done() { copyStatus.innerHTML = '<span class="ok">已复制，去 Clash 里粘贴导入</span>'; }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+  } else { fallbackCopy(text); done(); }
+});
+function fallbackCopy(text) {
+  var ta = document.createElement("textarea");
+  ta.value = text; document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy"); } catch (e) {}
+  document.body.removeChild(ta);
+}
+document.getElementById("openBtn").addEventListener("click", function () {
+  var text = outEl.textContent;
+  if (text && text.indexOf("http") === 0) window.open(text, "_blank");
+});
+baseEl.addEventListener("input", render);
+styleEl.addEventListener("change", render);
+tokenEl.addEventListener("input", render);
+render();
+</script>
+</body>
+</html>
