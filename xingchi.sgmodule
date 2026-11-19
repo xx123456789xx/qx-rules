@@ -1,0 +1,8 @@
+#!name=星驰签到
+#!desc=星驰 API（xingchiapi.com）每日签到。首次使用：在 Safari 登录站点后，用快捷指令运行本模块的「星驰导入会话」并把站点的 refresh_token 作为输入传入一次，会话只保存在 Surge 本地存储；之后每天按下面参数设定的时间自动签到（默认 8:05）。令牌不要写进模块或脚本文件。
+#!arguments=minute:5,hour:8
+#!arguments-desc=签到时间：minute 是分钟（0-59），hour 是小时（0-23）。
+
+[Script]
+星驰签到 = type=cron, cronexp={{{minute}}} {{{hour}}} * * *, script-path=https://raw.githubusercontent.com/xx123456789xx/qx-rules/main/scripts/xingchi-checkin.js, timeout=60, wake-system=1
+星驰导入会话 = type=generic, script-path=https://raw.githubusercontent.com/xx123456789xx/qx-rules/main/scripts/xingchi-checkin.js, timeout=60
