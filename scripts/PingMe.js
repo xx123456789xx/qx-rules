@@ -4,6 +4,9 @@
 // Account data is stored locally under pingme_surge_accounts_v1.
 // Capture once, then DISABLE the http-request capture rule.
 // No real service requests were made during conversion/testing.
+// v2 (2026-11-20): ignore param-less warm-up captures (empty fingerprint,
+// e.g. the app launch call that stored phantom account d41d8cd98f00) and
+// purge already-stored phantom accounts at the start of a check-in run.
 
 const scriptName = 'PingMe';
 const storeKey = 'pingme_surge_accounts_v1';
@@ -107,10 +110,13 @@ rawMap[k] = v;
 return rawMap;
 }
 
-function fingerprintOf(paramsRaw) {
+function fingerprintBase(paramsRaw) {
 const drop = { sign:1, signDate:1, timestamp:1, ts:1, nonce:1, random:1, reqTime:1, reqId:1, requestId:1};
-const base = Object.keys(paramsRaw || {}).filter(k =>!drop[k]).sort().map(k => `${k}=${paramsRaw[k]}`).join('&');
-return MD5(base).slice(0, 12);
+return Object.keys(paramsRaw || {}).filter(k =>!drop[k]).sort().map(k => `${k}=${paramsRaw[k]}`).join('&');
+}
+
+function fingerprintOf(paramsRaw) {
+return MD5(fingerprintBase(paramsRaw)).slice(0, 12);
 }
 
 function loadStore() {
@@ -270,7 +276,11 @@ function runAccount(acc, index, total) {
   });
 }
 
-if (typeof $request !== 'undefined' && $request) {
+const isCaptureReq = typeof $request !== 'undefined' && $request;
+if (isCaptureReq && !fingerprintBase(parseRawQuery($request.url))) {
+  console.log('PingMe: ignored param-less capture (app warm-up call); not stored.');
+  $done({});
+} else if (isCaptureReq) {
   const paramsRaw = parseRawQuery($request.url);
   const headersMap = normalizeHeaderNameMap($request.headers || {});
   let baseUA = '';
@@ -304,6 +314,12 @@ if (typeof $request !== 'undefined' && $request) {
   $done({});
 } else {
   const store = loadStore();
+  const phantomIds = store.order.filter(id => store.accounts[id] && !fingerprintBase(store.accounts[id].capture ? store.accounts[id].capture.paramsRaw : {}));
+  if (phantomIds.length) {
+    removeAccounts(store, phantomIds);
+    saveStore(store);
+    console.log(`PingMe: purged ${phantomIds.length} phantom account(s): ${phantomIds.join(', ')}`);
+  }
   const ids = store.order.filter(id => store.accounts[id]);
   if (!ids.length) {
     notify('⚠️ 未抓到任何账号', '请启用账号获取脚本，打开 PingMe 余额页面；获取成功后禁用获取脚本。');
