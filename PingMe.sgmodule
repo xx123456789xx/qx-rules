@@ -1,11 +1,13 @@
 #!name=PingMe 签到
-#!desc=PingMe 余额查询 + 每日普通签到（脚本改编自 ZenmoFeiShi/Qx PingMe.js，已去除模拟视频奖励、伪造设备等功能）。首次使用：保持模块启用，打开 PingMe App 的余额页面完成一次账号抓取，收到入库通知后，在 Surge 模块参数里关掉「PingMe抓取账号」这一行（或长期关着，需要重新抓取时再开），之后每天 9:00、21:00 各自动签到一次。
+#!desc=PingMe 余额查询 + 每日普通签到（脚本改编自 ZenmoFeiShi/Qx PingMe.js，已去除模拟视频奖励、伪造设备等功能）。首次使用：保持模块启用，打开 PingMe App 的余额页面完成一次账号抓取，收到入库通知后，在 Surge 模块参数里关掉「PingMe抓取账号」这一行（或长期关着，需要重新抓取时再开），之后每天按下面参数设定的时间各自动签到一次（默认 9:00、21:00）。
 #!author=Adapted (orig. ZenmoFeiShi)
 #!homepage=https://github.com/xx123456789xx/qx-rules
+#!arguments=minute:0,hour1:9,hour2:21
+#!arguments-desc=签到时间：minute 是分钟（0-59），hour1、hour2 是两次签到的小时（0-23）。
 
 [Script]
 PingMe抓取账号 = type=http-request, pattern=^https:\/\/api\.pingmeapp\.net\/app\/queryBalanceAndBonus\?, script-path=https://raw.githubusercontent.com/xx123456789xx/qx-rules/main/scripts/PingMe.js
-PingMe每日签到 = type=cron, cronexp=0 9,21 * * *, script-path=https://raw.githubusercontent.com/xx123456789xx/qx-rules/main/scripts/PingMe.js, timeout=180, wake-system=1
+PingMe每日签到 = type=cron, cronexp={{{minute}}} {{{hour1}}},{{{hour2}}} * * *, script-path=https://raw.githubusercontent.com/xx123456789xx/qx-rules/main/scripts/PingMe.js, timeout=180, wake-system=1
 
 [MITM]
 hostname = %APPEND% api.pingmeapp.net
