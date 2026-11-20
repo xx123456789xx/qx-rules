@@ -1,0 +1,12 @@
+#!name=肖恩 AI 签到集成版
+#!desc=肖恩 AI（go.toter.me）首次获取会话 + 每日签到（默认 08:10，时间可在参数中修改）。首次获取需开启并信任自己的 Surge MITM 证书。获取后将 capture_host 改为 off.invalid，保留本模块启用。
+#!system=ios
+#!arguments=capture_host:go.toter.me,minute:10,hour:8
+#!arguments-desc=capture_host：首次获取填 go.toter.me；收到「登录会话已保存」后改为 off.invalid，关闭本模块的会话获取和本站解密。失效后再改回 go.toter.me 重新获取。不要填写通配符 *，不要留空。minute、hour：每日签到的分钟（0-59）与小时（0-23），默认 10、8，即 08:10。
+
+[Script]
+肖恩签到 = type=cron, cronexp={{{minute}}} {{{hour}}} * * *, script-path=https://raw.githubusercontent.com/xx123456789xx/qx-rules/main/scripts/toter-checkin.js, timeout=45, wake-system=1
+肖恩获取会话 = type=http-response, pattern=^https://go\.toter\.me/api/auth/me/?(?:\?[^#]*)?$, script-path=https://raw.githubusercontent.com/xx123456789xx/qx-rules/main/scripts/toter-checkin.js, argument="{{{capture_host}}}", requires-body=true, max-size=131072, full-header-mode=true, timeout=10
+
+[MITM]
+hostname = %APPEND% {{{capture_host}}}
