@@ -1,6 +1,8 @@
 /*
-肖恩 AI / go.toter.me · Surge 单账号每日签到 v1.1
+肖恩 AI / go.toter.me · Surge 单账号每日签到 v1.2
 公开前端核对日期：2026-11-21。未使用真实账号实测。
+v1.2：签到结果附带总余额（me 接口的 quota，含固定/签到额度拆分，
+字段据站点公开前端代码核对；签到成功后会再查一次状态取最新余额）。
 捕获：只监听 GET /api/auth/me 的成功响应，保存该请求的本站 Cookie。
 定时：GET /api/auth/me → 未签到才 POST /api/user/signin。
 不保存密码，不抓登录请求，不调用购买/邀请/模型接口；不会自动填写密码。
@@ -162,6 +164,14 @@ function api(session, method, path) {
     });
   });
 }
+function fmtNum(n) { return typeof n === 'number' && Number.isFinite(n) ? n.toLocaleString('en-US') : null; }
+function balanceText(data) {
+  const q = data && fmtNum(data.quota);
+  if (q === null) return '';
+  const p = fmtNum(data.permanentQuota), d = fmtNum(data.dailyQuota);
+  const detail = p !== null && d !== null ? `（固定 ${p} + 今日签到 ${d}）` : '';
+  return `当前总余额：${q} 额度${detail}。`;
+}
 async function getState(session) {
   const payload = await api(session, 'get', ME);
   const id = userId(payload.data);
@@ -173,7 +183,7 @@ async function checkin() {
   const session = loadSession();
   if (!session) throw issue(`还没有保存登录会话。${RELOGIN}`, 'auth');
   const state = await getState(session);
-  if (state.hasSignedInToday) return '今天已经签到，无需重复领取。';
+  if (state.hasSignedInToday) return '今天已经签到，无需重复领取。' + balanceText(state);
   let payload;
   try {
     payload = await api(session, 'post', SIGNIN);
@@ -182,15 +192,17 @@ async function checkin() {
       // 提交结果不明确时，只补查状态，绝不自动重发签到 POST。
       let verified;
       try { verified = await getState(session); } catch (_) {}
-      if (verified && verified.hasSignedInToday) return '已确认今天完成签到（通过账号状态复核）。';
+      if (verified && verified.hasSignedInToday) return '已确认今天完成签到（通过账号状态复核）。' + balanceText(verified);
       throw issue('未能确认本次签到结果，未重复提交；请到网页核对。');
     }
     throw err;
   }
   const bonus = payload.data && payload.data.bonus;
-  return typeof bonus === 'number' && Number.isFinite(bonus)
+  let msg = typeof bonus === 'number' && Number.isFinite(bonus)
     ? `签到成功，获得 ${bonus.toLocaleString('en-US')} 额度。`
     : '站点已确认签到成功。';
+  try { msg += balanceText(await getState(session)); } catch (_) {}
+  return msg;
 }
 (async () => {
   const intercepting = typeof $request !== 'undefined' && typeof $response !== 'undefined';
