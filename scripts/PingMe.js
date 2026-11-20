@@ -7,6 +7,12 @@
 // v2 (2026-11-20): ignore param-less warm-up captures (empty fingerprint,
 // e.g. the app launch call that stored phantom account d41d8cd98f00) and
 // purge already-stored phantom accounts at the start of a check-in run.
+// v3 (2026-11-20): one entry per email. A fresh capture for an email
+// already stored replaces that entry in place (a reinstall changes
+// device params and thus the fingerprint, which used to spawn a
+// duplicate entry every time). Check-in runs merge same-email
+// duplicates only when at least one copy verified (balance query
+// succeeded); if every copy failed, nothing is removed.
 
 const scriptName = 'PingMe';
 const storeKey = 'pingme_surge_accounts_v1';
@@ -218,6 +224,7 @@ function runAccount(acc, index, total) {
   const headers = buildHeaders(acc.capture, ua);
   const msgs = [`${tag}${email ? `\n📧 ${email}` : ''}`];
   const flag = { deregistered: false };
+  let queryOk = false;
 
   function fetchApi(path) {
     return new Promise((resolve, reject) => {
@@ -236,7 +243,7 @@ function runAccount(acc, index, total) {
   return fetchApi('queryBalanceAndBonus').then(res => {
     try {
       const d = JSON.parse(res.body);
-      if (d.retcode === 0) msgs.push(`💰 余额：${d.result.balance} Coins`);
+      if (d.retcode === 0) { msgs.push(`💰 余额：${d.result.balance} Coins`); queryOk = true; }
       else {
         msgs.push(`⚠️ 查询：${d.retmsg}`);
         if (isDeregistered(d.retmsg)) flag.deregistered = true;
@@ -269,10 +276,10 @@ function runAccount(acc, index, total) {
         if (d.retcode === 0) msgs.push(`💰 最新余额：${d.result.balance} Coins`);
       } catch (e) {}
     }
-    return { text: msgs.join('\n'), deregistered: flag.deregistered };
+    return { text: msgs.join('\n'), deregistered: flag.deregistered, ok: queryOk };
   }).catch(err => {
     msgs.push(`❌ 异常：${err.error || String(err)}`);
-    return { text: msgs.join('\n'), deregistered: false };
+    return { text: msgs.join('\n'), deregistered: false, ok: false };
   });
 }
 
@@ -289,11 +296,20 @@ if (isCaptureReq && !fingerprintBase(parseRawQuery($request.url))) {
   const store = loadStore();
   const fp = fingerprintOf(paramsRaw);
   const now = Date.now();
-  const existed = !!store.accounts[fp];
-  const uaSeed = existed ? store.accounts[fp].uaSeed : store.order.length;
-  const alias = existed ? store.accounts[fp].alias : `账号${store.order.length + 1}`;
   let email = '';
   try { email = decodeURIComponent(paramsRaw.email || ''); } catch (e) { email = paramsRaw.email || ''; }
+  const emailKey = email.trim().toLowerCase();
+  const dupIds = emailKey ? store.order.filter(id => id !== fp && store.accounts[id] && getEmail(store.accounts[id]).trim().toLowerCase() === emailKey) : [];
+  const existed = !!store.accounts[fp];
+  const prior = existed ? store.accounts[fp] : (dupIds.length ? store.accounts[dupIds[dupIds.length - 1]] : null);
+  const uaSeed = prior ? prior.uaSeed : store.order.length;
+  const alias = prior ? prior.alias : `账号${store.order.length + 1}`;
+  let insertPos = -1;
+  if (!existed && dupIds.length) insertPos = store.order.indexOf(dupIds[0]);
+  if (dupIds.length) {
+    dupIds.forEach(id => { delete store.accounts[id]; });
+    store.order = store.order.filter(id => dupIds.indexOf(id) === -1);
+  }
 
   store.accounts[fp] = {
     id: fp,
@@ -302,14 +318,17 @@ if (isCaptureReq && !fingerprintBase(parseRawQuery($request.url))) {
     uaSeed,
     baseUA,
     capture: { url: $request.url, paramsRaw, headers: headersMap },
-    createdAt: existed ? store.accounts[fp].createdAt : now,
+    createdAt: prior ? prior.createdAt : now,
     updatedAt: now
   };
-  if (!existed) store.order.push(fp);
+  if (!existed) {
+    if (insertPos !== -1) store.order.splice(insertPos, 0, fp);
+    else store.order.push(fp);
+  }
   saveStore(store);
 
   const total = store.order.length;
-  notify(existed ? '🔄 账号参数已更新' : '✅ 新账号已入库', `${alias}（id:${fp}）${email ? `\n📧 ${email}` : ''}\n当前账号总数：${total}`);
+  notify(prior ? '🔄 账号参数已更新' : '✅ 新账号已入库', `${alias}（id:${fp}）${email ? `\n📧 ${email}` : ''}\n当前账号总数：${total}`);
   console.log('PingMe: account capture saved; credentials omitted.');
   $done({});
 } else {
@@ -328,23 +347,52 @@ if (isCaptureReq && !fingerprintBase(parseRawQuery($request.url))) {
     const total = ids.length;
     const results = [];
     const deadIds = [];
+    const okIds = [];
     let chain = Promise.resolve();
     ids.forEach((id, idx) => {
       chain = chain.then(() => runAccount(store.accounts[id], idx, total))
         .then(r => {
           results.push(r.text);
           if (r.deregistered) deadIds.push(id);
+          if (r.ok) okIds.push(id);
         })
         .then(() => idx < ids.length - 1 ? sleep(1000) : null);
     });
     chain.then(() => {
       let extra = '';
+      const freshStore = loadStore();
+      let storeChanged = false;
       if (deadIds.length) {
-        const freshStore = loadStore();
         const removed = removeAccounts(freshStore, deadIds);
-        saveStore(freshStore);
-        if (removed.length) extra = `\n———\n🗑 已移除注销账号：${removed.join('、')}（剩余${freshStore.order.length}个）`;
+        if (removed.length) { storeChanged = true; extra = `\n———\n🗑 已移除注销账号：${removed.join('、')}（剩余${freshStore.order.length}个）`; }
       }
+      const okSet = {};
+      okIds.forEach(id => { okSet[id] = 1; });
+      const groups = {};
+      freshStore.order.forEach(id => {
+        const acc = freshStore.accounts[id];
+        if (!acc) return;
+        const ek = getEmail(acc).trim().toLowerCase();
+        if (!ek) return;
+        (groups[ek] = groups[ek] || []).push(id);
+      });
+      const mergeIds = [];
+      Object.keys(groups).forEach(ek => {
+        const g = groups[ek];
+        if (g.length < 2) return;
+        const okMembers = g.filter(id => okSet[id]);
+        if (!okMembers.length) return;
+        let keep = okMembers[0];
+        okMembers.forEach(id => {
+          if ((freshStore.accounts[id].updatedAt || 0) >= (freshStore.accounts[keep].updatedAt || 0)) keep = id;
+        });
+        g.forEach(id => { if (id !== keep) mergeIds.push(id); });
+      });
+      if (mergeIds.length) {
+        const removedM = removeAccounts(freshStore, mergeIds);
+        if (removedM.length) { storeChanged = true; extra += `\n———\n🧹 已合并同邮箱重复账号：${removedM.join('、')}（剩余${freshStore.order.length}个）`; }
+      }
+      if (storeChanged) saveStore(freshStore);
       notify(`🎉 全部完成 (${total}个账号)`, results.join('\n———\n') + extra);
       $done();
     }).catch(err => {
