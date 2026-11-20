@@ -13,6 +13,10 @@
 // duplicate entry every time). Check-in runs merge same-email
 // duplicates only when at least one copy verified (balance query
 // succeeded); if every copy failed, nothing is removed.
+// v4 (2026-11-20): the capture entry receives the module's capture
+// argument as $argument. Setting it to off makes the capture branch
+// return immediately (no store, no notification), so the app can be
+// opened without re-capturing every time. No argument = stays on.
 
 const scriptName = 'PingMe';
 const storeKey = 'pingme_surge_accounts_v1';
@@ -284,7 +288,10 @@ function runAccount(acc, index, total) {
 }
 
 const isCaptureReq = typeof $request !== 'undefined' && $request;
-if (isCaptureReq && !fingerprintBase(parseRawQuery($request.url))) {
+const captureOff = isCaptureReq && typeof $argument === 'string' && /^(off|false|0)$/i.test($argument.trim());
+if (captureOff) {
+  $done({});
+} else if (isCaptureReq && !fingerprintBase(parseRawQuery($request.url))) {
   console.log('PingMe: ignored param-less capture (app warm-up call); not stored.');
   $done({});
 } else if (isCaptureReq) {
