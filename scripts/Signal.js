@@ -139,11 +139,12 @@
     });
     if(req){localReply(200,'application/json',JSON.stringify({v:2,route:route,at:at,duration:Math.max(0,at-started),rows:data}));return;}
     var names=['Netflix','Disney+','YouTube','ChatGPT'];
-    var dots={reachable:'🟢',warn:'🟡',timeout:'🟡',blocked:'🔴',error:'🔴'};
+    var marks={reachable:'✓',warn:'⚠︎',timeout:'⚠︎',blocked:'✗',error:'✗'};
+    function fmtMs(ms){if(typeof ms!=='number'||!isFinite(ms))return '';return ms<1000?' · '+Math.round(ms)+'ms':' · '+(ms/1000).toFixed(1)+'s';}
     var hm=new Date(at),clock=('0'+hm.getHours()).slice(-2)+':'+('0'+hm.getMinutes()).slice(-2);
     var lines=[count+'/4 网页可达  ·  '+clock,''];
-    data.forEach(function(r,i){lines.push((dots[r.state]||'⚪')+' '+names[i]+'  /  '+r.label+(r.region?' · '+r.region:'')+(typeof r.ms==='number'?' · '+Math.round(r.ms)+'ms':''));});
-    lines.push('','仅网页探测 · 地区为页面提示','完整看板（含品牌 logo）：Safari 打开 192.0.2.1');
+    data.forEach(function(r,i){lines.push((marks[r.state]||'·')+' '+names[i]+' · '+r.label+(r.region?' · '+r.region:'')+fmtMs(r.ms));});
+    lines.push('','仅网页探测 · 地区为页面提示','完整看板（含 logo）：192.0.2.1');
     $done({title:'Signal · 连通性',content:lines.join('\n'),icon:'waveform', 'icon-color':'#408C7B'});
   }
   setTimeout(finish,11000);
