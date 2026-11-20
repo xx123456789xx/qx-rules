@@ -1,0 +1,12 @@
+#!name=Signal · 节点体检
+#!desc=浅色 iOS 风格流媒体与 AI 状态看板。启用模块后打开 http://192.0.2.1/。192.0.2.1 是文档保留地址；Surge 脚本本地返回页面，不访问外网目标。无需 MITM。
+
+[Panel]
+SignalSummary = script-name=SignalSummary, title="Signal · 连通性", content="刷新查看四项服务\nNetflix · Disney+ · YouTube · ChatGPT", icon=waveform, icon-color=#408C7B
+
+[Script]
+SignalSummary = type=generic, script-path=https://raw.githubusercontent.com/xx123456789xx/qx-rules/main/scripts/Signal.js, timeout=15
+SignalDashboard = type=http-request, pattern=^http:\/\/192\.0\.2\.1(?::80)?\/.*$, script-path=https://raw.githubusercontent.com/xx123456789xx/qx-rules/main/scripts/Signal.js, timeout=15
+
+[Rule]
+IP-CIDR,192.0.2.1/32,DIRECT,no-resolve
