@@ -1,0 +1,1 @@
+{"mcpServers":{"firecrawl-local":{"args":["mcp","--public-only"],"command":"firecrawl-local","disabled":false,"env":{"FIRECRAWL_CLOUD":"off"}}}}
