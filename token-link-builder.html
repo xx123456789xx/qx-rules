@@ -50,9 +50,13 @@
     <button id="clearBtn" type="button" class="danger">清除已存 token</button>
   </div>
   <div id="tokenStatus" class="status"></div>
+  <div class="row">
+    <button id="linkBtn" type="button" class="secondary">生成专属链接（存桌面用，token 不怕丢）</button>
+  </div>
+  <div id="linkStatus" class="status"></div>
 
   <label for="base">2. 基础链接（Muse 给你的 raw 链接，或 owner/repo/分支/文件）</label>
-  <textarea id="base" autocapitalize="off" spellcheck="false" placeholder="把 Muse 给的 raw 链接粘贴到这里"></textarea>
+  <textarea id="base" autocapitalize="off" spellcheck="false">https://raw.githubusercontent.com/xx123456789xx/clash-sub/main/clash.yaml</textarea>
 
   <label for="style">3. 拼接方式</label>
   <select id="style">
@@ -69,7 +73,7 @@
   <div id="copyStatus" class="status"></div>
 
   <p class="note">
-    <b>怎么放到桌面：</b>用 Safari 打开本页 → 分享 →「添加到主屏幕」。之后从桌面图标打开，第一次在图标打开的页面里再粘一次 token 保存（主屏幕应用和 Safari 的存储是分开的）。<br>
+    <b>怎么放到桌面（推荐）：</b>先粘好 token，点上面「生成专属链接」，用 Safari 打开复制到的那条链接 → 分享 →「添加到主屏幕」。token 藏在链接 # 后面的片段里，不会发给任何服务器；以后从桌面图标打开就自带 token，不怕浏览器存储被清掉。<b>这条专属链接等于 token 本身，别转发给任何人。</b><br>
     <b>注意：</b>换浏览器、清浏览器数据、长期不用被系统清缓存，都会让已存 token 消失，重新从密码管理器粘一次即可。不要在别人的设备上保存你的 token。
   </p>
 </main>
@@ -105,15 +109,24 @@ var outEl = document.getElementById("out");
 var tokenStatus = document.getElementById("tokenStatus");
 var copyStatus = document.getElementById("copyStatus");
 
+function hashToken() {
+  var m = /[#&]t=([^&]+)/.exec(location.hash || "");
+  if (!m) return "";
+  try { return decodeURIComponent(m[1]).trim(); } catch (e) { return ""; }
+}
 function currentToken() {
   var v = tokenEl.value.trim();
   if (v) return v;
+  var h = hashToken();
+  if (h) return h;
   try { return localStorage.getItem(LS_KEY) || ""; } catch (e) { return ""; }
 }
 function render() {
   var t = currentToken();
   outEl.textContent = buildFullUrl(baseEl.value, t, styleEl.value) || "（先填基础链接和 token）";
-  if (t) {
+  if (t && hashToken()) {
+    tokenStatus.innerHTML = '<span class="ok">已从专属链接载入 token（尾号 …' + t.slice(-4) + "）</span>";
+  } else if (t) {
     tokenStatus.innerHTML = '<span class="ok">已载入 token（尾号 …' + t.slice(-4) + "）</span>";
   } else {
     tokenStatus.innerHTML = '<span class="warn">还没有 token：粘贴后点「保存到本机」</span>';
@@ -155,9 +168,20 @@ document.getElementById("openBtn").addEventListener("click", function () {
   var text = outEl.textContent;
   if (text && text.indexOf("http") === 0) window.open(text, "_blank");
 });
+document.getElementById("linkBtn").addEventListener("click", function () {
+  var t = currentToken();
+  var ls = document.getElementById("linkStatus");
+  if (!t) { ls.innerHTML = '<span class="warn">先粘贴 token，再生成专属链接</span>'; return; }
+  var url = location.origin + location.pathname + "#t=" + encodeURIComponent(t);
+  function done() { ls.innerHTML = '<span class="ok">专属链接已复制。用 Safari 打开它 → 分享 →「添加到主屏幕」，以后从新图标打开就自带 token。这条链接等于 token 本身，别转发给任何人。</span>'; }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(done, function () { fallbackCopy(url); done(); });
+  } else { fallbackCopy(url); done(); }
+});
 baseEl.addEventListener("input", render);
 styleEl.addEventListener("change", render);
 tokenEl.addEventListener("input", render);
+(function () { var h = hashToken(); if (h) { try { localStorage.setItem(LS_KEY, h); } catch (e) {} } })();
 render();
 </script>
 </body>
